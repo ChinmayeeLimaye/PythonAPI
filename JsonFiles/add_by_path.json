@@ -1,0 +1,13 @@
+{
+  "project_id": "Us_census_data",
+  "url_path": "/weav-data/uploaded-raw-files",
+  "artifact_id": "",
+  "dataset_name": "Us_census_data",
+  "destination_path": "raw",
+  "destination": "Custom Destination",
+  "tags": [],
+  "file_type": "csv",
+  "connector_id": "7e96005d-cbd3-4353-aa87-a5d305641ccc",
+  "source_name": "file",
+  "connector_name": "file"
+}

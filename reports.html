@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>reports.html</h1>
+    <p>Report generated on 06-Jun-2022 at 14:15:58 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.11.0", "pytest": "7.1.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Linux-5.13.0-44-generic-x86_64-with-glibc2.29</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"bdd": "5.0.0", "forked": "1.4.0", "html": "3.1.1", "metadata": "2.0.1", "xdist": "2.5.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.8.10</td></tr></table>
+    <h2>Summary</h2>
+    <p>2 tests ran in 14.39 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">2 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">stepdefs/test_getcolstats.py::test_verify_get_col_stats_passes_positive_test_cases[get_col_stats.json]</td>
+          <td class="col-duration">7.24</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     datasetid:test_getcolstats.py:37 {&#x27;project_id&#x27;: &#x27;Us_census_data&#x27;, &#x27;url_path&#x27;: &#x27;/weav-data/uploaded-raw-files&#x27;, &#x27;artifact_id&#x27;: &#x27;&#x27;, &#x27;dataset_name&#x27;: &#x27;Us_census_data&#x27;, &#x27;destination_path&#x27;: &#x27;raw&#x27;, &#x27;destination&#x27;: &#x27;Custom Destination&#x27;, &#x27;tags&#x27;: [], &#x27;file_type&#x27;: &#x27;csv&#x27;, &#x27;connector_id&#x27;: &#x27;7e96005d-cbd3-4353-aa87-a5d305641ccc&#x27;, &#x27;source_name&#x27;: &#x27;file&#x27;, &#x27;connector_name&#x27;: &#x27;file&#x27;}
+INFO     datasetid:test_getcolstats.py:41 b&#x27;{&quot;data&quot;:{&quot;dataset_id&quot;:&quot;541d96e7-7f0b-4e2c-912a-ac796f7e84de&quot;,&quot;version_id&quot;:&quot;1.0.1654505144&quot;},&quot;status&quot;:{&quot;code&quot;:200,&quot;result&quot;:&quot;success&quot;}}\n&#x27;
+INFO     payload:test_getcolstats.py:72 {&#x27;dataset_id&#x27;: &#x27;541d96e7-7f0b-4e2c-912a-ac796f7e84de&#x27;, &#x27;version_id&#x27;: &#x27;1.0.1654505144&#x27;, &#x27;user_id&#x27;: &#x27;Sheshan01&#x27;, &#x27;session_id&#x27;: &#x27;session007&#x27;, &#x27;file_name&#x27;: &#x27;tinder2.parquet&#x27;, &#x27;col_names&#x27;: [&#x27;Count&#x27;, &#x27;Percentage&#x27;, &#x27;Segment Description&#x27;]}
+INFO     payload:test_getcolstats.py:78 b&#x27;{\n  &quot;data&quot;: {\n    &quot;Count&quot;: {\n      &quot;feature_class&quot;: &quot;numeric&quot;, \n      &quot;feature_type&quot;: &quot;integer&quot;, \n      &quot;max&quot;: 498.0, \n      &quot;median&quot;: 242.9147, \n      &quot;min&quot;: 1.0, \n      &quot;missing_values&quot;: 0, \n      &quot;quantiles&quot;: {\n        &quot;0&quot;: 134.0717, \n        &quot;1&quot;: 242.9147, \n        &quot;2&quot;: 356.9762\n      }, \n      &quot;standard_deviation&quot;: 139.0614, \n      &quot;total_rows&quot;: 453\n    }, \n    &quot;Percentage&quot;: {\n      &quot;feature_class&quot;: &quot;numeric&quot;, \n      &quot;feature_type&quot;: &quot;float&quot;, \n      &quot;max&quot;: 0.9978, \n      &quot;median&quot;: 0.4717, \n      &quot;min&quot;: 0.0044, \n      &quot;missing_values&quot;: 0, \n      &quot;quantiles&quot;: {\n        &quot;0&quot;: 0.2563, \n        &quot;1&quot;: 0.4717, \n        &quot;2&quot;: 0.7631\n      }, \n      &quot;standard_deviation&quot;: 0.2871, \n      &quot;total_rows&quot;: 453\n    }, \n    &quot;Segment Description&quot;: {\n      &quot;bigram_counts&quot;: &quot;{\\&quot;Mobile_respondents\\&quot;: 3, \\&quot;Web_based\\&quot;: 3, \\&quot;based_respondents\\&quot;: 3, \\&quot;Male_respondents\\&quot;: 3, \\&quot;Female_respondents\\&quot;: 3, \\&quot;Chapman_University\\&quot;: 3, \\&quot;Cornell_University\\&quot;: 3, \\&quot;Duke_University\\&quot;: 3, \\&quot;George_Washington\\&quot;: 3, \\&quot;Washington_University\\&quot;: 6, \\&quot;Georgetown_University\\&quot;: 3, \\&quot;Harvard_University\\&quot;: 3, \\&quot;Indiana_University\\&quot;: 3, \\&quot;Johns_Hopkins\\&quot;: 3, \\&quot;Hopkins_University\\&quot;: 3, \\&quot;Northwestern_University\\&quot;: 3, \\&quot;Ohio_State\\&quot;: 3, \\&quot;State_University\\&quot;: 48, \\&quot;Princeton_University\\&quot;: 3, \\&quot;San_Diego\\&quot;: 6, \\&quot;Diego_State\\&quot;: 3, \\&quot;Santa_Clara\\&quot;: 3, \\&quot;Clara_University\\&quot;: 3, \\&quot;Southern_Methodist\\&quot;: 3, \\&quot;Methodist_University\\&quot;: 3, \\&quot;Stanford_University\\&quot;: 3, \\&quot;Tulane_University\\&quot;: 3, \\&quot;University_of\\&quot;: 150, \\&quot;of_Pennsylvania\\&quot;: 3, \\&quot;of_Wisconsin\\&quot;: 12, \\&quot;Wisconsin_Madison\\&quot;: 3, \\&quot;of_Alabama\\&quot;: 3, \\&quot;of_California\\&quot;: 18, \\&quot;California_Berkeley\\&quot;: 3, \\&quot;California_Davis\\&quot;: 3, \\&quot;California_Los\\&quot;: 3, \\&quot;Los_Angeles\\&quot;: 3, \\&quot;California_Santa\\&quot;: 6, \\&quot;Santa_Barbara\\&quot;: 3, \\&quot;of_Colorado\\&quot;: 3, \\&quot;Colorado_Boulder\\&quot;: 3, \\&quot;of_Miami\\&quot;: 3, \\&quot;of_Michigan\\&quot;: 3, \\&quot;of_Oregon\\&quot;: 3, \\&quot;of_Southern\\&quot;: 3, \\&quot;Southern_California\\&quot;: 3, \\&quot;of_Virginia\\&quot;: 3, \\&quot;Vanderbilt_University\\&quot;: 3, \\&quot;Wesleyan_University\\&quot;: 3, \\&quot;of_Texas\\&quot;: 3, \\&quot;California_San\\&quot;: 3, \\&quot;Miami_University\\&quot;: 3, \\&quot;University_Ohio\\&quot;: 3, \\&quot;of_Maine\\&quot;: 3, \\&quot;Texas_Tech\\&quot;: 3, \\&quot;Tech_University\\&quot;: 3, \\&quot;of_North\\&quot;: 3, \\&quot;North_Carolina\\&quot;: 6, \\&quot;of_Arkansas\\&quot;: 3, \\&quot;of_Mississippi\\&quot;: 3, \\&quot;Baylor_University\\&quot;: 3, \\&quot;Texas_A\\&quot;: 3, \\&quot;A_M\\&quot;: 3, \\&quot;M_University\\&quot;: 3, \\&quot;of_Oklahoma\\&quot;: 3, \\&quot;Yale_University\\&quot;: 3, \\&quot;Cal_Poly\\&quot;: 3, \\&quot;Poly_San\\&quot;: 3, \\&quot;San_Luis\\&quot;: 3, \\&quot;Luis_Obispo\\&quot;: 3, \\&quot;Carnegie_Mellon\\&quot;: 3, \\&quot;Mellon_University\\&quot;: 3, \\&quot;Clemson_University\\&quot;: 3, \\&quot;of_Denver\\&quot;: 3, \\&quot;of_Washington\\&quot;: 3, \\&quot;of_Illinois\\&quot;: 3, \\&quot;New_York\\&quot;: 3, \\&quot;York_University\\&quot;: 3, \\&quot;Butler_University\\&quot;: 3, \\&quot;University_in\\&quot;: 3, \\&quot;in_St\\&quot;: 3, \\&quot;St_Louis\\&quot;: 3, \\&quot;Northern_Illinois\\&quot;: 3, \\&quot;Illinois_University\\&quot;: 3, \\&quot;of_Iowa\\&quot;: 3, \\&quot;Dartmouth_College\\&quot;: 3, \\&quot;Loyola_Marymount\\&quot;: 3, \\&quot;Marymount_University\\&quot;: 3, \\&quot;Williams_College\\&quot;: 3, \\&quot;of_Maryland\\&quot;: 3, \\&quot;UMass_Amherst\\&quot;: 3, \\&quot;of_Arizona\\&quot;: 3, \\&quot;Texas_Christian\\&quot;: 3, \\&quot;Christian_University\\&quot;: 3, \\&quot;Emory_University\\&quot;: 3, \\&quot;Columbia_University\\&quot;: 3, \\&quot;Purdue_University\\&quot;: 3, \\&quot;Tufts_University\\&quot;: 3, \\&quot;of_Richmond\\&quot;: 3, \\&quot;Quinnipiac_University\\&quot;: 3, \\&quot;United_States\\&quot;: 3, \\&quot;States_Naval\\&quot;: 3, \\&quot;Naval_Academy\\&quot;: 3, \\&quot;Santa_Cruz\\&quot;: 3, \\&quot;Rice_University\\&quot;: 3, \\&quot;Mississippi_State\\&quot;: 3, \\&quot;of_Missouri\\&quot;: 3, \\&quot;of_Georgia\\&quot;: 3, \\&quot;Louisiana_State\\&quot;: 3, \\&quot;Lehigh_University\\&quot;: 3, \\&quot;Northern_Arizona\\&quot;: 3, \\&quot;Arizona_University\\&quot;: 3, \\&quot;Elon_University\\&quot;: 3, \\&quot;Vassar_College\\&quot;: 3, \\&quot;of_Pittsburgh\\&quot;: 3, \\&quot;of_Chicago\\&quot;: 3, \\&quot;of_Buffalo\\&quot;: 3, \\&quot;of_Minnesota\\&quot;: 3, \\&quot;Colorado_State\\&quot;: 3, \\&quot;Skidmore_College\\&quot;: 3, \\&quot;Rochester_Institute\\&quot;: 3, \\&quot;Institute_of\\&quot;: 6, \\&quot;of_Technology\\&quot;: 6, \\&quot;Arizona_State\\&quot;: 3, \\&quot;of_Rochester\\&quot;: 3, \\&quot;of_St\\&quot;: 3, \\&quot;St_Andrews\\&quot;: 3, \\&quot;Florida_State\\&quot;: 3, \\&quot;Ithaca_College\\&quot;: 3, \\&quot;Union_College\\&quot;: 3, \\&quot;Loyola_University\\&quot;: 3, \\&quot;University_Maryland\\&quot;: 3, \\&quot;Marquette_University\\&quot;: 3, \\&quot;James_Madison\\&quot;: 3, \\&quot;Madison_University\\&quot;: 3, \\&quot;Sacred_Heart\\&quot;: 3, \\&quot;Heart_University\\&quot;: 3, \\&quot;Wisconsin_Whitewater\\&quot;: 3, \\&quot;St_Lawrence\\&quot;: 3, \\&quot;Lawrence_University\\&quot;: 3, \\&quot;Iowa_State\\&quot;: 3, \\&quot;Wisconsin_La\\&quot;: 3, \\&quot;La_Crosse\\&quot;: 3, \\&quot;College_of\\&quot;: 3, \\&quot;of_William\\&quot;: 3, \\&quot;William_and\\&quot;: 3, \\&quot;and_Mary\\&quot;: 3, \\&quot;of_Notre\\&quot;: 3, \\&quot;Notre_Dame\\&quot;: 3, \\&quot;of_Tennessee\\&quot;: 3, \\&quot;Illinois_State\\&quot;: 3, \\&quot;Auburn_University\\&quot;: 3, \\&quot;Gonzaga_University\\&quot;: 3, \\&quot;Washington_State\\&quot;: 3, \\&quot;Michigan_State\\&quot;: 3, \\&quot;Florida_International\\&quot;: 3, \\&quot;International_University\\&quot;: 3, \\&quot;of_Central\\&quot;: 6, \\&quot;Central_Florida\\&quot;: 3, \\&quot;Castleton_State\\&quot;: 3, \\&quot;State_College\\&quot;: 3, \\&quot;Cal_State\\&quot;: 3, \\&quot;State_Northridge\\&quot;: 3, \\&quot;Ohio_University\\&quot;: 3, \\&quot;Pepperdine_University\\&quot;: 3, \\&quot;Providence_College\\&quot;: 3, \\&quot;Appalachian_State\\&quot;: 3, \\&quot;of_Connecticut\\&quot;: 3, \\&quot;Wisconsin_Eau\\&quot;: 3, \\&quot;Eau_Claire\\&quot;: 3, \\&quot;of_Delaware\\&quot;: 3, \\&quot;Massachusetts_Institute\\&quot;: 3, \\&quot;Oregon_State\\&quot;: 3, \\&quot;Whatsgoodly_University\\&quot;: 3, \\&quot;Case_Western\\&quot;: 3, \\&quot;Western_Reserve\\&quot;: 3, \\&quot;Reserve_University\\&quot;: 3, \\&quot;Michigan_Technological\\&quot;: 3, \\&quot;Technological_University\\&quot;: 3, \\&quot;Meridian_Idaho\\&quot;: 3, \\&quot;of_Dayton\\&quot;: 3, \\&quot;of_Kansas\\&quot;: 3, \\&quot;Morehead_State\\&quot;: 3, \\&quot;Central_Oklahoma\\&quot;: 3, \\&quot;Syracuse_University\\&quot;: 3, \\&quot;Colby_College\\&quot;: 3, \\&quot;Brigham_Young\\&quot;: 3, \\&quot;Young_University\\&quot;: 3, \\&quot;Arkansas_State\\&quot;: 3, \\&quot;Westport_CT\\&quot;: 3, \\&quot;Centre_College\\&quot;: 3, \\&quot;Middlebury_College\\&quot;: 3, \\&quot;Carolina_State\\&quot;: 3, \\&quot;of_Kentucky\\&quot;: 3, \\&quot;Bucknell_University\\&quot;: 3, \\&quot;Randolph_Macon\\&quot;: 3, \\&quot;Macon_College\\&quot;: 3, \\&quot;Old_Dominion\\&quot;: 3, \\&quot;Dominion_University\\&quot;: 3, \\&quot;of_Tampa\\&quot;: 3, \\&quot;Roger_Williams\\&quot;: 3, \\&quot;Williams_University\\&quot;: 3, \\&quot;Penn_State\\&quot;: 3, \\&quot;Minnesota_State\\&quot;: 3, \\&quot;University_Mankato\\&quot;: 3, \\&quot;of_Florida\\&quot;: 3, \\&quot;Boston_College\\&quot;: 3, \\&quot;Boston_University\\&quot;: 3}&quot;, \n      &quot;feature_class&quot;: &quot;text&quot;, \n      &quot;feature_type&quot;: &quot;short_text&quot;, \n      &quot;missing_values&quot;: 0, \n      &quot;text_lengths&quot;: &quot;{\\&quot;0\\&quot;:18,\\&quot;1\\&quot;:18,\\&quot;2\\&quot;:18,\\&quot;3\\&quot;:21,\\&quot;4\\&quot;:21,\\&quot;5\\&quot;:21,\\&quot;6\\&quot;:16,\\&quot;7\\&quot;:16,\\&quot;8\\&quot;:16,\\&quot;9\\&quot;:18,\\&quot;10\\&quot;:18,\\&quot;11\\&quot;:18,\\&quot;12\\&quot;:18,\\&quot;13\\&quot;:18,\\&quot;14\\&quot;:18,\\&quot;15\\&quot;:18,\\&quot;16\\&quot;:18,\\&quot;17\\&quot;:18,\\&quot;18\\&quot;:15,\\&quot;19\\&quot;:15,\\&quot;20\\&quot;:15,\\&quot;21\\&quot;:28,\\&quot;22\\&quot;:28,\\&quot;23\\&quot;:28,\\&quot;24\\&quot;:21,\\&quot;25\\&quot;:21,\\&quot;26\\&quot;:21,\\&quot;27\\&quot;:18,\\&quot;28\\&quot;:18,\\&quot;29\\&quot;:18,\\&quot;30\\&quot;:18,\\&quot;31\\&quot;:18,\\&quot;32\\&quot;:18,\\&quot;33\\&quot;:24,\\&quot;34\\&quot;:24,\\&quot;35\\&quot;:24,\\&quot;36\\&quot;:23,\\&quot;37\\&quot;:23,\\&quot;38\\&quot;:23,\\&quot;39\\&quot;:21,\\&quot;40\\&quot;:21,\\&quot;41\\&quot;:21,\\&quot;42\\&quot;:20,\\&quot;43\\&quot;:20,\\&quot;44\\&quot;:20,\\&quot;45\\&quot;:26,\\&quot;46\\&quot;:26,\\&quot;47\\&quot;:26,\\&quot;48\\&quot;:22,\\&quot;49\\&quot;:22,\\&quot;50\\&quot;:22,\\&quot;51\\&quot;:29,\\&quot;52\\&quot;:29,\\&quot;53\\&quot;:29,\\&quot;54\\&quot;:19,\\&quot;55\\&quot;:19,\\&quot;56\\&quot;:19,\\&quot;57\\&quot;:17,\\&quot;58\\&quot;:17,\\&quot;59\\&quot;:17,\\&quot;60\\&quot;:26,\\&quot;61\\&quot;:26,\\&quot;62\\&quot;:26,\\&quot;63\\&quot;:31,\\&quot;64\\&quot;:31,\\&quot;65\\&quot;:31,\\&quot;66\\&quot;:21,\\&quot;67\\&quot;:21,\\&quot;68\\&quot;:21,\\&quot;69\\&quot;:34,\\&quot;70\\&quot;:34,\\&quot;71\\&quot;:34,\\&quot;72\\&quot;:31,\\&quot;73\\&quot;:31,\\&quot;74\\&quot;:31,\\&quot;75\\&quot;:37,\\&quot;76\\&quot;:37,\\&quot;77\\&quot;:37,\\&quot;78\\&quot;:39,\\&quot;79\\&quot;:39,\\&quot;80\\&quot;:39,\\&quot;81\\&quot;:30,\\&quot;82\\&quot;:30,\\&quot;83\\&quot;:30,\\&quot;84\\&quot;:19,\\&quot;85\\&quot;:19,\\&quot;86\\&quot;:19,\\&quot;87\\&quot;:22,\\&quot;88\\&quot;:22,\\&quot;89\\&quot;:22,\\&quot;90\\&quot;:20,\\&quot;91\\&quot;:20,\\&quot;92\\&quot;:20,\\&quot;93\\&quot;:33,\\&quot;94\\&quot;:33,\\&quot;95\\&quot;:33,\\&quot;96\\&quot;:22,\\&quot;97\\&quot;:22,\\&quot;98\\&quot;:22,\\&quot;99\\&quot;:21,\\&quot;100\\&quot;:21,\\&quot;101\\&quot;:21,\\&quot;102\\&quot;:19,\\&quot;103\\&quot;:19,\\&quot;104\\&quot;:19,\\&quot;105\\&quot;:19,\\&quot;106\\&quot;:19,\\&quot;107\\&quot;:19,\\&quot;108\\&quot;:35,\\&quot;109\\&quot;:35,\\&quot;110\\&quot;:35,\\&quot;111\\&quot;:23,\\&quot;112\\&quot;:23,\\&quot;113\\&quot;:23,\\&quot;114\\&quot;:19,\\&quot;115\\&quot;:19,\\&quot;116\\&quot;:19,\\&quot;117\\&quot;:21,\\&quot;118\\&quot;:21,\\&quot;119\\&quot;:21,\\&quot;120\\&quot;:28,\\&quot;121\\&quot;:28,\\&quot;122\\&quot;:28,\\&quot;123\\&quot;:22,\\&quot;124\\&quot;:22,\\&quot;125\\&quot;:22,\\&quot;126\\&quot;:25,\\&quot;127\\&quot;:25,\\&quot;128\\&quot;:25,\\&quot;129\\&quot;:17,\\&quot;130\\&quot;:17,\\&quot;131\\&quot;:17,\\&quot;132\\&quot;:20,\\&quot;133\\&quot;:20,\\&quot;134\\&quot;:20,\\&quot;135\\&quot;:22,\\&quot;136\\&quot;:22,\\&quot;137\\&quot;:22,\\&quot;138\\&quot;:15,\\&quot;139\\&quot;:15,\\&quot;140\\&quot;:15,\\&quot;141\\&quot;:24,\\&quot;142\\&quot;:24,\\&quot;143\\&quot;:24,\\&quot;144\\&quot;:26,\\&quot;145\\&quot;:26,\\&quot;146\\&quot;:26,\\&quot;147\\&quot;:18,\\&quot;148\\&quot;:18,\\&quot;149\\&quot;:18,\\&quot;150\\&quot;:20,\\&quot;151\\&quot;:20,\\&quot;152\\&quot;:20,\\&quot;153\\&quot;:24,\\&quot;154\\&quot;:24,\\&quot;155\\&quot;:24,\\&quot;156\\&quot;:22,\\&quot;157\\&quot;:22,\\&quot;158\\&quot;:22,\\&quot;159\\&quot;:19,\\&quot;160\\&quot;:19,\\&quot;161\\&quot;:19,\\&quot;162\\&quot;:17,\\&quot;163\\&quot;:17,\\&quot;164\\&quot;:17,\\&quot;165\\&quot;:34,\\&quot;166\\&quot;:34,\\&quot;167\\&quot;:34,\\&quot;168\\&quot;:28,\\&quot;169\\&quot;:28,\\&quot;170\\&quot;:28,\\&quot;171\\&quot;:18,\\&quot;172\\&quot;:18,\\&quot;173\\&quot;:18,\\&quot;174\\&quot;:17,\\&quot;175\\&quot;:17,\\&quot;176\\&quot;:17,\\&quot;177\\&quot;:27,\\&quot;178\\&quot;:27,\\&quot;179\\&quot;:27,\\&quot;180\\&quot;:16,\\&quot;181\\&quot;:16,\\&quot;182\\&quot;:16,\\&quot;183\\&quot;:22,\\&quot;184\\&quot;:22,\\&quot;185\\&quot;:22,\\&quot;186\\&quot;:13,\\&quot;187\\&quot;:13,\\&quot;188\\&quot;:13,\\&quot;189\\&quot;:21,\\&quot;190\\&quot;:21,\\&quot;191\\&quot;:21,\\&quot;192\\&quot;:26,\\&quot;193\\&quot;:26,\\&quot;194\\&quot;:26,\\&quot;195\\&quot;:16,\\&quot;196\\&quot;:16,\\&quot;197\\&quot;:16,\\&quot;198\\&quot;:19,\\&quot;199\\&quot;:19,\\&quot;200\\&quot;:19,\\&quot;201\\&quot;:17,\\&quot;202\\&quot;:17,\\&quot;203\\&quot;:17,\\&quot;204\\&quot;:16,\\&quot;205\\&quot;:16,\\&quot;206\\&quot;:16,\\&quot;207\\&quot;:22,\\&quot;208\\&quot;:22,\\&quot;209\\&quot;:22,\\&quot;210\\&quot;:21,\\&quot;211\\&quot;:21,\\&quot;212\\&quot;:21,\\&quot;213\\&quot;:27,\\&quot;214\\&quot;:27,\\&quot;215\\&quot;:27,\\&quot;216\\&quot;:36,\\&quot;217\\&quot;:36,\\&quot;218\\&quot;:36,\\&quot;219\\&quot;:16,\\&quot;220\\&quot;:16,\\&quot;221\\&quot;:16,\\&quot;222\\&quot;:28,\\&quot;223\\&quot;:28,\\&quot;224\\&quot;:28,\\&quot;225\\&quot;:22,\\&quot;226\\&quot;:22,\\&quot;227\\&quot;:22,\\&quot;228\\&quot;:21,\\&quot;229\\&quot;:21,\\&quot;230\\&quot;:21,\\&quot;231\\&quot;:26,\\&quot;232\\&quot;:26,\\&quot;233\\&quot;:26,\\&quot;234\\&quot;:17,\\&quot;235\\&quot;:17,\\&quot;236\\&quot;:17,\\&quot;237\\&quot;:27,\\&quot;238\\&quot;:27,\\&quot;239\\&quot;:27,\\&quot;240\\&quot;:15,\\&quot;241\\&quot;:15,\\&quot;242\\&quot;:15,\\&quot;243\\&quot;:14,\\&quot;244\\&quot;:14,\\&quot;245\\&quot;:14,\\&quot;246\\&quot;:24,\\&quot;247\\&quot;:24,\\&quot;248\\&quot;:24,\\&quot;249\\&quot;:21,\\&quot;250\\&quot;:21,\\&quot;251\\&quot;:21,\\&quot;252\\&quot;:21,\\&quot;253\\&quot;:21,\\&quot;254\\&quot;:21,\\&quot;255\\&quot;:23,\\&quot;256\\&quot;:23,\\&quot;257\\&quot;:23,\\&quot;258\\&quot;:25,\\&quot;259\\&quot;:25,\\&quot;260\\&quot;:25,\\&quot;261\\&quot;:16,\\&quot;262\\&quot;:16,\\&quot;263\\&quot;:16,\\&quot;264\\&quot;:33,\\&quot;265\\&quot;:33,\\&quot;266\\&quot;:33,\\&quot;267\\&quot;:24,\\&quot;268\\&quot;:24,\\&quot;269\\&quot;:24,\\&quot;270\\&quot;:23,\\&quot;271\\&quot;:23,\\&quot;272\\&quot;:23,\\&quot;273\\&quot;:24,\\&quot;274\\&quot;:24,\\&quot;275\\&quot;:24,\\&quot;276\\&quot;:24,\\&quot;277\\&quot;:24,\\&quot;278\\&quot;:24,\\&quot;279\\&quot;:14,\\&quot;280\\&quot;:14,\\&quot;281\\&quot;:14,\\&quot;282\\&quot;:13,\\&quot;283\\&quot;:13,\\&quot;284\\&quot;:13,\\&quot;285\\&quot;:26,\\&quot;286\\&quot;:26,\\&quot;287\\&quot;:26,\\&quot;288\\&quot;:20,\\&quot;289\\&quot;:20,\\&quot;290\\&quot;:20,\\&quot;291\\&quot;:24,\\&quot;292\\&quot;:24,\\&quot;293\\&quot;:24,\\&quot;294\\&quot;:23,\\&quot;295\\&quot;:23,\\&quot;296\\&quot;:23,\\&quot;297\\&quot;:34,\\&quot;298\\&quot;:34,\\&quot;299\\&quot;:34,\\&quot;300\\&quot;:23,\\&quot;301\\&quot;:23,\\&quot;302\\&quot;:23,\\&quot;303\\&quot;:21,\\&quot;304\\&quot;:21,\\&quot;305\\&quot;:21,\\&quot;306\\&quot;:33,\\&quot;307\\&quot;:33,\\&quot;308\\&quot;:33,\\&quot;309\\&quot;:27,\\&quot;310\\&quot;:27,\\&quot;311\\&quot;:27,\\&quot;312\\&quot;:24,\\&quot;313\\&quot;:24,\\&quot;314\\&quot;:24,\\&quot;315\\&quot;:23,\\&quot;316\\&quot;:23,\\&quot;317\\&quot;:23,\\&quot;318\\&quot;:14,\\&quot;319\\&quot;:14,\\&quot;320\\&quot;:14,\\&quot;321\\&quot;:17,\\&quot;322\\&quot;:17,\\&quot;323\\&quot;:17,\\&quot;324\\&quot;:18,\\&quot;325\\&quot;:18,\\&quot;326\\&quot;:18,\\&quot;327\\&quot;:27,\\&quot;328\\&quot;:27,\\&quot;329\\&quot;:27,\\&quot;330\\&quot;:25,\\&quot;331\\&quot;:25,\\&quot;332\\&quot;:25,\\&quot;333\\&quot;:32,\\&quot;334\\&quot;:32,\\&quot;335\\&quot;:32,\\&quot;336\\&quot;:29,\\&quot;337\\&quot;:29,\\&quot;338\\&quot;:29,\\&quot;339\\&quot;:23,\\&quot;340\\&quot;:23,\\&quot;341\\&quot;:23,\\&quot;342\\&quot;:20,\\&quot;343\\&quot;:20,\\&quot;344\\&quot;:20,\\&quot;345\\&quot;:15,\\&quot;346\\&quot;:15,\\&quot;347\\&quot;:15,\\&quot;348\\&quot;:21,\\&quot;349\\&quot;:21,\\&quot;350\\&quot;:21,\\&quot;351\\&quot;:18,\\&quot;352\\&quot;:18,\\&quot;353\\&quot;:18,\\&quot;354\\&quot;:28,\\&quot;355\\&quot;:28,\\&quot;356\\&quot;:28,\\&quot;357\\&quot;:25,\\&quot;358\\&quot;:25,\\&quot;359\\&quot;:25,\\&quot;360\\&quot;:35,\\&quot;361\\&quot;:35,\\&quot;362\\&quot;:35,\\&quot;363\\&quot;:22,\\&quot;364\\&quot;:22,\\&quot;365\\&quot;:22,\\&quot;366\\&quot;:37,\\&quot;367\\&quot;:37,\\&quot;368\\&quot;:37,\\&quot;369\\&quot;:23,\\&quot;370\\&quot;:23,\\&quot;371\\&quot;:23,\\&quot;372\\&quot;:22,\\&quot;373\\&quot;:22,\\&quot;374\\&quot;:22,\\&quot;375\\&quot;:31,\\&quot;376\\&quot;:31,\\&quot;377\\&quot;:31,\\&quot;378\\&quot;:33,\\&quot;379\\&quot;:33,\\&quot;380\\&quot;:33,\\&quot;381\\&quot;:15,\\&quot;382\\&quot;:15,\\&quot;383\\&quot;:15,\\&quot;384\\&quot;:20,\\&quot;385\\&quot;:20,\\&quot;386\\&quot;:20,\\&quot;387\\&quot;:20,\\&quot;388\\&quot;:20,\\&quot;389\\&quot;:20,\\&quot;390\\&quot;:25,\\&quot;391\\&quot;:25,\\&quot;392\\&quot;:25,\\&quot;393\\&quot;:30,\\&quot;394\\&quot;:30,\\&quot;395\\&quot;:30,\\&quot;396\\&quot;:19,\\&quot;397\\&quot;:19,\\&quot;398\\&quot;:19,\\&quot;399\\&quot;:13,\\&quot;400\\&quot;:13,\\&quot;401\\&quot;:13,\\&quot;402\\&quot;:24,\\&quot;403\\&quot;:24,\\&quot;404\\&quot;:24,\\&quot;405\\&quot;:25,\\&quot;406\\&quot;:25,\\&quot;407\\&quot;:25,\\&quot;408\\&quot;:12,\\&quot;409\\&quot;:12,\\&quot;410\\&quot;:12,\\&quot;411\\&quot;:14,\\&quot;412\\&quot;:14,\\&quot;413\\&quot;:14,\\&quot;414\\&quot;:18,\\&quot;415\\&quot;:18,\\&quot;416\\&quot;:18,\\&quot;417\\&quot;:20,\\&quot;418\\&quot;:20,\\&quot;419\\&quot;:20,\\&quot;420\\&quot;:22,\\&quot;421\\&quot;:22,\\&quot;422\\&quot;:22,\\&quot;423\\&quot;:19,\\&quot;424\\&quot;:19,\\&quot;425\\&quot;:19,\\&quot;426\\&quot;:22,\\&quot;427\\&quot;:22,\\&quot;428\\&quot;:22,\\&quot;429\\&quot;:23,\\&quot;430\\&quot;:23,\\&quot;431\\&quot;:23,\\&quot;432\\&quot;:19,\\&quot;433\\&quot;:19,\\&quot;434\\&quot;:19,\\&quot;435\\&quot;:25,\\&quot;436\\&quot;:25,\\&quot;437\\&quot;:25,\\&quot;438\\&quot;:21,\\&quot;439\\&quot;:21,\\&quot;440\\&quot;:21,\\&quot;441\\&quot;:34,\\&quot;442\\&quot;:34,\\&quot;443\\&quot;:34,\\&quot;444\\&quot;:21,\\&quot;445\\&quot;:21,\\&quot;446\\&quot;:21,\\&quot;447\\&quot;:14,\\&quot;448\\&quot;:14,\\&quot;449\\&quot;:14,\\&quot;450\\&quot;:17,\\&quot;451\\&quot;:17,\\&quot;452\\&quot;:17}&quot;, \n      &quot;total_rows&quot;: 453, \n      &quot;word_counts&quot;: &quot;{\\&quot;Mobile\\&quot;: 3, \\&quot;respondents\\&quot;: 12, \\&quot;Web\\&quot;: 3, \\&quot;based\\&quot;: 3, \\&quot;Male\\&quot;: 3, \\&quot;Female\\&quot;: 3, \\&quot;Chapman\\&quot;: 3, \\&quot;University\\&quot;: 369, \\&quot;Cornell\\&quot;: 3, \\&quot;Duke\\&quot;: 3, \\&quot;George\\&quot;: 3, \\&quot;Washington\\&quot;: 12, \\&quot;Georgetown\\&quot;: 3, \\&quot;Harvard\\&quot;: 3, \\&quot;Indiana\\&quot;: 3, \\&quot;Johns\\&quot;: 3, \\&quot;Hopkins\\&quot;: 3, \\&quot;Northwestern\\&quot;: 3, \\&quot;Ohio\\&quot;: 9, \\&quot;State\\&quot;: 60, \\&quot;Princeton\\&quot;: 3, \\&quot;San\\&quot;: 9, \\&quot;Diego\\&quot;: 6, \\&quot;Santa\\&quot;: 9, \\&quot;Clara\\&quot;: 3, \\&quot;Southern\\&quot;: 6, \\&quot;Methodist\\&quot;: 3, \\&quot;Stanford\\&quot;: 3, \\&quot;Tulane\\&quot;: 3, \\&quot;of\\&quot;: 159, \\&quot;Pennsylvania\\&quot;: 3, \\&quot;Wisconsin\\&quot;: 12, \\&quot;Madison\\&quot;: 6, \\&quot;Alabama\\&quot;: 3, \\&quot;California\\&quot;: 21, \\&quot;Berkeley\\&quot;: 3, \\&quot;Davis\\&quot;: 3, \\&quot;Los\\&quot;: 3, \\&quot;Angeles\\&quot;: 3, \\&quot;Barbara\\&quot;: 3, \\&quot;Colorado\\&quot;: 6, \\&quot;Boulder\\&quot;: 3, \\&quot;Miami\\&quot;: 6, \\&quot;Michigan\\&quot;: 9, \\&quot;Oregon\\&quot;: 6, \\&quot;Virginia\\&quot;: 3, \\&quot;Vanderbilt\\&quot;: 3, \\&quot;Wesleyan\\&quot;: 3, \\&quot;Texas\\&quot;: 12, \\&quot;Maine\\&quot;: 3, \\&quot;Tech\\&quot;: 3, \\&quot;North\\&quot;: 6, \\&quot;Carolina\\&quot;: 6, \\&quot;Arkansas\\&quot;: 6, \\&quot;Mississippi\\&quot;: 6, \\&quot;Baylor\\&quot;: 3, \\&quot;A\\&quot;: 3, \\&quot;M\\&quot;: 3, \\&quot;Oklahoma\\&quot;: 6, \\&quot;Yale\\&quot;: 3, \\&quot;Cal\\&quot;: 6, \\&quot;Poly\\&quot;: 3, \\&quot;Luis\\&quot;: 3, \\&quot;Obispo\\&quot;: 3, \\&quot;Carnegie\\&quot;: 3, \\&quot;Mellon\\&quot;: 3, \\&quot;Clemson\\&quot;: 3, \\&quot;Denver\\&quot;: 3, \\&quot;Illinois\\&quot;: 9, \\&quot;New\\&quot;: 3, \\&quot;York\\&quot;: 3, \\&quot;Butler\\&quot;: 3, \\&quot;in\\&quot;: 3, \\&quot;St\\&quot;: 9, \\&quot;Louis\\&quot;: 3, \\&quot;Northern\\&quot;: 6, \\&quot;Iowa\\&quot;: 6, \\&quot;Dartmouth\\&quot;: 3, \\&quot;College\\&quot;: 42, \\&quot;Loyola\\&quot;: 6, \\&quot;Marymount\\&quot;: 3, \\&quot;Williams\\&quot;: 6, \\&quot;Maryland\\&quot;: 6, \\&quot;UMass\\&quot;: 3, \\&quot;Amherst\\&quot;: 3, \\&quot;Arizona\\&quot;: 9, \\&quot;Christian\\&quot;: 3, \\&quot;Emory\\&quot;: 3, \\&quot;Columbia\\&quot;: 3, \\&quot;Purdue\\&quot;: 3, \\&quot;Tufts\\&quot;: 3, \\&quot;Richmond\\&quot;: 3, \\&quot;Quinnipiac\\&quot;: 3, \\&quot;United\\&quot;: 3, \\&quot;States\\&quot;: 3, \\&quot;Naval\\&quot;: 3, \\&quot;Academy\\&quot;: 3, \\&quot;Cruz\\&quot;: 3, \\&quot;Rice\\&quot;: 3, \\&quot;Missouri\\&quot;: 3, \\&quot;Georgia\\&quot;: 3, \\&quot;Louisiana\\&quot;: 3, \\&quot;Lehigh\\&quot;: 3, \\&quot;Elon\\&quot;: 3, \\&quot;Vassar\\&quot;: 3, \\&quot;Pittsburgh\\&quot;: 3, \\&quot;Chicago\\&quot;: 3, \\&quot;Buffalo\\&quot;: 3, \\&quot;Minnesota\\&quot;: 6, \\&quot;Skidmore\\&quot;: 3, \\&quot;Rochester\\&quot;: 6, \\&quot;Institute\\&quot;: 6, \\&quot;Technology\\&quot;: 6, \\&quot;Andrews\\&quot;: 3, \\&quot;Florida\\&quot;: 12, \\&quot;Ithaca\\&quot;: 3, \\&quot;Union\\&quot;: 3, \\&quot;Marquette\\&quot;: 3, \\&quot;James\\&quot;: 3, \\&quot;Sacred\\&quot;: 3, \\&quot;Heart\\&quot;: 3, \\&quot;Whitewater\\&quot;: 3, \\&quot;Lawrence\\&quot;: 3, \\&quot;La\\&quot;: 3, \\&quot;Crosse\\&quot;: 3, \\&quot;William\\&quot;: 3, \\&quot;and\\&quot;: 3, \\&quot;Mary\\&quot;: 3, \\&quot;Notre\\&quot;: 3, \\&quot;Dame\\&quot;: 3, \\&quot;Tennessee\\&quot;: 3, \\&quot;Auburn\\&quot;: 3, \\&quot;Gonzaga\\&quot;: 3, \\&quot;International\\&quot;: 3, \\&quot;Central\\&quot;: 6, \\&quot;Castleton\\&quot;: 3, \\&quot;Northridge\\&quot;: 3, \\&quot;Pepperdine\\&quot;: 3, \\&quot;Providence\\&quot;: 3, \\&quot;Appalachian\\&quot;: 3, \\&quot;Connecticut\\&quot;: 3, \\&quot;Eau\\&quot;: 3, \\&quot;Claire\\&quot;: 3, \\&quot;Delaware\\&quot;: 3, \\&quot;Massachusetts\\&quot;: 3, \\&quot;Whatsgoodly\\&quot;: 3, \\&quot;Case\\&quot;: 3, \\&quot;Western\\&quot;: 3, \\&quot;Reserve\\&quot;: 3, \\&quot;Technological\\&quot;: 3, \\&quot;Meridian\\&quot;: 3, \\&quot;Idaho\\&quot;: 3, \\&quot;Dayton\\&quot;: 3, \\&quot;Kansas\\&quot;: 3, \\&quot;Morehead\\&quot;: 3, \\&quot;Syracuse\\&quot;: 3, \\&quot;Colby\\&quot;: 3, \\&quot;Brigham\\&quot;: 3, \\&quot;Young\\&quot;: 3, \\&quot;Westport\\&quot;: 3, \\&quot;CT\\&quot;: 3, \\&quot;Centre\\&quot;: 3, \\&quot;Middlebury\\&quot;: 3, \\&quot;Kentucky\\&quot;: 3, \\&quot;Bucknell\\&quot;: 3, \\&quot;Randolph\\&quot;: 3, \\&quot;Macon\\&quot;: 3, \\&quot;Old\\&quot;: 3, \\&quot;Dominion\\&quot;: 3, \\&quot;Tampa\\&quot;: 3, \\&quot;Roger\\&quot;: 3, \\&quot;Penn\\&quot;: 3, \\&quot;Mankato\\&quot;: 3, \\&quot;Boston\\&quot;: 6}&quot;, \n      &quot;word_lengths&quot;: &quot;{\\&quot;0\\&quot;:2,\\&quot;1\\&quot;:2,\\&quot;2\\&quot;:2,\\&quot;3\\&quot;:3,\\&quot;4\\&quot;:3,\\&quot;5\\&quot;:3,\\&quot;6\\&quot;:2,\\&quot;7\\&quot;:2,\\&quot;8\\&quot;:2,\\&quot;9\\&quot;:2,\\&quot;10\\&quot;:2,\\&quot;11\\&quot;:2,\\&quot;12\\&quot;:2,\\&quot;13\\&quot;:2,\\&quot;14\\&quot;:2,\\&quot;15\\&quot;:2,\\&quot;16\\&quot;:2,\\&quot;17\\&quot;:2,\\&quot;18\\&quot;:2,\\&quot;19\\&quot;:2,\\&quot;20\\&quot;:2,\\&quot;21\\&quot;:3,\\&quot;22\\&quot;:3,\\&quot;23\\&quot;:3,\\&quot;24\\&quot;:2,\\&quot;25\\&quot;:2,\\&quot;26\\&quot;:2,\\&quot;27\\&quot;:2,\\&quot;28\\&quot;:2,\\&quot;29\\&quot;:2,\\&quot;30\\&quot;:2,\\&quot;31\\&quot;:2,\\&quot;32\\&quot;:2,\\&quot;33\\&quot;:3,\\&quot;34\\&quot;:3,\\&quot;35\\&quot;:3,\\&quot;36\\&quot;:2,\\&quot;37\\&quot;:2,\\&quot;38\\&quot;:2,\\&quot;39\\&quot;:3,\\&quot;40\\&quot;:3,\\&quot;41\\&quot;:3,\\&quot;42\\&quot;:2,\\&quot;43\\&quot;:2,\\&quot;44\\&quot;:2,\\&quot;45\\&quot;:4,\\&quot;46\\&quot;:4,\\&quot;47\\&quot;:4,\\&quot;48\\&quot;:3,\\&quot;49\\&quot;:3,\\&quot;50\\&quot;:3,\\&quot;51\\&quot;:3,\\&quot;52\\&quot;:3,\\&quot;53\\&quot;:3,\\&quot;54\\&quot;:2,\\&quot;55\\&quot;:2,\\&quot;56\\&quot;:2,\\&quot;57\\&quot;:2,\\&quot;58\\&quot;:2,\\&quot;59\\&quot;:2,\\&quot;60\\&quot;:3,\\&quot;61\\&quot;:3,\\&quot;62\\&quot;:3,\\&quot;63\\&quot;:4,\\&quot;64\\&quot;:4,\\&quot;65\\&quot;:4,\\&quot;66\\&quot;:3,\\&quot;67\\&quot;:3,\\&quot;68\\&quot;:3,\\&quot;69\\&quot;:4,\\&quot;70\\&quot;:4,\\&quot;71\\&quot;:4,\\&quot;72\\&quot;:4,\\&quot;73\\&quot;:4,\\&quot;74\\&quot;:4,\\&quot;75\\&quot;:5,\\&quot;76\\&quot;:5,\\&quot;77\\&quot;:5,\\&quot;78\\&quot;:5,\\&quot;79\\&quot;:5,\\&quot;80\\&quot;:5,\\&quot;81\\&quot;:4,\\&quot;82\\&quot;:4,\\&quot;83\\&quot;:4,\\&quot;84\\&quot;:3,\\&quot;85\\&quot;:3,\\&quot;86\\&quot;:3,\\&quot;87\\&quot;:3,\\&quot;88\\&quot;:3,\\&quot;89\\&quot;:3,\\&quot;90\\&quot;:3,\\&quot;91\\&quot;:3,\\&quot;92\\&quot;:3,\\&quot;93\\&quot;:4,\\&quot;94\\&quot;:4,\\&quot;95\\&quot;:4,\\&quot;96\\&quot;:3,\\&quot;97\\&quot;:3,\\&quot;98\\&quot;:3,\\&quot;99\\&quot;:2,\\&quot;100\\&quot;:2,\\&quot;101\\&quot;:2,\\&quot;102\\&quot;:2,\\&quot;103\\&quot;:2,\\&quot;104\\&quot;:2,\\&quot;105\\&quot;:3,\\&quot;106\\&quot;:3,\\&quot;107\\&quot;:3,\\&quot;108\\&quot;:5,\\&quot;109\\&quot;:5,\\&quot;110\\&quot;:5,\\&quot;111\\&quot;:3,\\&quot;112\\&quot;:3,\\&quot;113\\&quot;:3,\\&quot;114\\&quot;:3,\\&quot;115\\&quot;:3,\\&quot;116\\&quot;:3,\\&quot;117\\&quot;:3,\\&quot;118\\&quot;:3,\\&quot;119\\&quot;:3,\\&quot;120\\&quot;:4,\\&quot;121\\&quot;:4,\\&quot;122\\&quot;:4,\\&quot;123\\&quot;:3,\\&quot;124\\&quot;:3,\\&quot;125\\&quot;:3,\\&quot;126\\&quot;:3,\\&quot;127\\&quot;:3,\\&quot;128\\&quot;:3,\\&quot;129\\&quot;:2,\\&quot;130\\&quot;:2,\\&quot;131\\&quot;:2,\\&quot;132\\&quot;:4,\\&quot;133\\&quot;:4,\\&quot;134\\&quot;:4,\\&quot;135\\&quot;:3,\\&quot;136\\&quot;:3,\\&quot;137\\&quot;:3,\\&quot;138\\&quot;:2,\\&quot;139\\&quot;:2,\\&quot;140\\&quot;:2,\\&quot;141\\&quot;:5,\\&quot;142\\&quot;:5,\\&quot;143\\&quot;:5,\\&quot;144\\&quot;:3,\\&quot;145\\&quot;:3,\\&quot;146\\&quot;:3,\\&quot;147\\&quot;:2,\\&quot;148\\&quot;:2,\\&quot;149\\&quot;:2,\\&quot;150\\&quot;:3,\\&quot;151\\&quot;:3,\\&quot;152\\&quot;:3,\\&quot;153\\&quot;:3,\\&quot;154\\&quot;:3,\\&quot;155\\&quot;:3,\\&quot;156\\&quot;:3,\\&quot;157\\&quot;:3,\\&quot;158\\&quot;:3,\\&quot;159\\&quot;:3,\\&quot;160\\&quot;:3,\\&quot;161\\&quot;:3,\\&quot;162\\&quot;:2,\\&quot;163\\&quot;:2,\\&quot;164\\&quot;:2,\\&quot;165\\&quot;:5,\\&quot;166\\&quot;:5,\\&quot;167\\&quot;:5,\\&quot;168\\&quot;:3,\\&quot;169\\&quot;:3,\\&quot;170\\&quot;:3,\\&quot;171\\&quot;:3,\\&quot;172\\&quot;:3,\\&quot;173\\&quot;:3,\\&quot;174\\&quot;:2,\\&quot;175\\&quot;:2,\\&quot;176\\&quot;:2,\\&quot;177\\&quot;:3,\\&quot;178\\&quot;:3,\\&quot;179\\&quot;:3,\\&quot;180\\&quot;:2,\\&quot;181\\&quot;:2,\\&quot;182\\&quot;:2,\\&quot;183\\&quot;:3,\\&quot;184\\&quot;:3,\\&quot;185\\&quot;:3,\\&quot;186\\&quot;:2,\\&quot;187\\&quot;:2,\\&quot;188\\&quot;:2,\\&quot;189\\&quot;:3,\\&quot;190\\&quot;:3,\\&quot;191\\&quot;:3,\\&quot;192\\&quot;:3,\\&quot;193\\&quot;:3,\\&quot;194\\&quot;:3,\\&quot;195\\&quot;:2,\\&quot;196\\&quot;:2,\\&quot;197\\&quot;:2,\\&quot;198\\&quot;:2,\\&quot;199\\&quot;:2,\\&quot;200\\&quot;:2,\\&quot;201\\&quot;:2,\\&quot;202\\&quot;:2,\\&quot;203\\&quot;:2,\\&quot;204\\&quot;:2,\\&quot;205\\&quot;:2,\\&quot;206\\&quot;:2,\\&quot;207\\&quot;:3,\\&quot;208\\&quot;:3,\\&quot;209\\&quot;:3,\\&quot;210\\&quot;:2,\\&quot;211\\&quot;:2,\\&quot;212\\&quot;:2,\\&quot;213\\&quot;:4,\\&quot;214\\&quot;:4,\\&quot;215\\&quot;:4,\\&quot;216\\&quot;:5,\\&quot;217\\&quot;:5,\\&quot;218\\&quot;:5,\\&quot;219\\&quot;:2,\\&quot;220\\&quot;:2,\\&quot;221\\&quot;:2,\\&quot;222\\&quot;:3,\\&quot;223\\&quot;:3,\\&quot;224\\&quot;:3,\\&quot;225\\&quot;:3,\\&quot;226\\&quot;:3,\\&quot;227\\&quot;:3,\\&quot;228\\&quot;:3,\\&quot;229\\&quot;:3,\\&quot;230\\&quot;:3,\\&quot;231\\&quot;:3,\\&quot;232\\&quot;:3,\\&quot;233\\&quot;:3,\\&quot;234\\&quot;:2,\\&quot;235\\&quot;:2,\\&quot;236\\&quot;:2,\\&quot;237\\&quot;:3,\\&quot;238\\&quot;:3,\\&quot;239\\&quot;:3,\\&quot;240\\&quot;:2,\\&quot;241\\&quot;:2,\\&quot;242\\&quot;:2,\\&quot;243\\&quot;:2,\\&quot;244\\&quot;:2,\\&quot;245\\&quot;:2,\\&quot;246\\&quot;:3,\\&quot;247\\&quot;:3,\\&quot;248\\&quot;:3,\\&quot;249\\&quot;:3,\\&quot;250\\&quot;:3,\\&quot;251\\&quot;:3,\\&quot;252\\&quot;:3,\\&quot;253\\&quot;:3,\\&quot;254\\&quot;:3,\\&quot;255\\&quot;:3,\\&quot;256\\&quot;:3,\\&quot;257\\&quot;:3,\\&quot;258\\&quot;:3,\\&quot;259\\&quot;:3,\\&quot;260\\&quot;:3,\\&quot;261\\&quot;:2,\\&quot;262\\&quot;:2,\\&quot;263\\&quot;:2,\\&quot;264\\&quot;:4,\\&quot;265\\&quot;:4,\\&quot;266\\&quot;:4,\\&quot;267\\&quot;:3,\\&quot;268\\&quot;:3,\\&quot;269\\&quot;:3,\\&quot;270\\&quot;:3,\\&quot;271\\&quot;:3,\\&quot;272\\&quot;:3,\\&quot;273\\&quot;:4,\\&quot;274\\&quot;:4,\\&quot;275\\&quot;:4,\\&quot;276\\&quot;:3,\\&quot;277\\&quot;:3,\\&quot;278\\&quot;:3,\\&quot;279\\&quot;:2,\\&quot;280\\&quot;:2,\\&quot;281\\&quot;:2,\\&quot;282\\&quot;:2,\\&quot;283\\&quot;:2,\\&quot;284\\&quot;:2,\\&quot;285\\&quot;:3,\\&quot;286\\&quot;:3,\\&quot;287\\&quot;:3,\\&quot;288\\&quot;:2,\\&quot;289\\&quot;:2,\\&quot;290\\&quot;:2,\\&quot;291\\&quot;:3,\\&quot;292\\&quot;:3,\\&quot;293\\&quot;:3,\\&quot;294\\&quot;:3,\\&quot;295\\&quot;:3,\\&quot;296\\&quot;:3,\\&quot;297\\&quot;:4,\\&quot;298\\&quot;:4,\\&quot;299\\&quot;:4,\\&quot;300\\&quot;:3,\\&quot;301\\&quot;:3,\\&quot;302\\&quot;:3,\\&quot;303\\&quot;:3,\\&quot;304\\&quot;:3,\\&quot;305\\&quot;:3,\\&quot;306\\&quot;:5,\\&quot;307\\&quot;:5,\\&quot;308\\&quot;:5,\\&quot;309\\&quot;:5,\\&quot;310\\&quot;:5,\\&quot;311\\&quot;:5,\\&quot;312\\&quot;:4,\\&quot;313\\&quot;:4,\\&quot;314\\&quot;:4,\\&quot;315\\&quot;:3,\\&quot;316\\&quot;:3,\\&quot;317\\&quot;:3,\\&quot;318\\&quot;:2,\\&quot;319\\&quot;:2,\\&quot;320\\&quot;:2,\\&quot;321\\&quot;:2,\\&quot;322\\&quot;:2,\\&quot;323\\&quot;:2,\\&quot;324\\&quot;:2,\\&quot;325\\&quot;:2,\\&quot;326\\&quot;:2,\\&quot;327\\&quot;:3,\\&quot;328\\&quot;:3,\\&quot;329\\&quot;:3,\\&quot;330\\&quot;:3,\\&quot;331\\&quot;:3,\\&quot;332\\&quot;:3,\\&quot;333\\&quot;:3,\\&quot;334\\&quot;:3,\\&quot;335\\&quot;:3,\\&quot;336\\&quot;:4,\\&quot;337\\&quot;:4,\\&quot;338\\&quot;:4,\\&quot;339\\&quot;:3,\\&quot;340\\&quot;:3,\\&quot;341\\&quot;:3,\\&quot;342\\&quot;:3,\\&quot;343\\&quot;:3,\\&quot;344\\&quot;:3,\\&quot;345\\&quot;:2,\\&quot;346\\&quot;:2,\\&quot;347\\&quot;:2,\\&quot;348\\&quot;:2,\\&quot;349\\&quot;:2,\\&quot;350\\&quot;:2,\\&quot;351\\&quot;:2,\\&quot;352\\&quot;:2,\\&quot;353\\&quot;:2,\\&quot;354\\&quot;:3,\\&quot;355\\&quot;:3,\\&quot;356\\&quot;:3,\\&quot;357\\&quot;:3,\\&quot;358\\&quot;:3,\\&quot;359\\&quot;:3,\\&quot;360\\&quot;:5,\\&quot;361\\&quot;:5,\\&quot;362\\&quot;:5,\\&quot;363\\&quot;:3,\\&quot;364\\&quot;:3,\\&quot;365\\&quot;:3,\\&quot;366\\&quot;:4,\\&quot;367\\&quot;:4,\\&quot;368\\&quot;:4,\\&quot;369\\&quot;:3,\\&quot;370\\&quot;:3,\\&quot;371\\&quot;:3,\\&quot;372\\&quot;:2,\\&quot;373\\&quot;:2,\\&quot;374\\&quot;:2,\\&quot;375\\&quot;:4,\\&quot;376\\&quot;:4,\\&quot;377\\&quot;:4,\\&quot;378\\&quot;:3,\\&quot;379\\&quot;:3,\\&quot;380\\&quot;:3,\\&quot;381\\&quot;:2,\\&quot;382\\&quot;:2,\\&quot;383\\&quot;:2,\\&quot;384\\&quot;:3,\\&quot;385\\&quot;:3,\\&quot;386\\&quot;:3,\\&quot;387\\&quot;:3,\\&quot;388\\&quot;:3,\\&quot;389\\&quot;:3,\\&quot;390\\&quot;:3,\\&quot;391\\&quot;:3,\\&quot;392\\&quot;:3,\\&quot;393\\&quot;:4,\\&quot;394\\&quot;:4,\\&quot;395\\&quot;:4,\\&quot;396\\&quot;:2,\\&quot;397\\&quot;:2,\\&quot;398\\&quot;:2,\\&quot;399\\&quot;:2,\\&quot;400\\&quot;:2,\\&quot;401\\&quot;:2,\\&quot;402\\&quot;:3,\\&quot;403\\&quot;:3,\\&quot;404\\&quot;:3,\\&quot;405\\&quot;:3,\\&quot;406\\&quot;:3,\\&quot;407\\&quot;:3,\\&quot;408\\&quot;:2,\\&quot;409\\&quot;:2,\\&quot;410\\&quot;:2,\\&quot;411\\&quot;:2,\\&quot;412\\&quot;:2,\\&quot;413\\&quot;:2,\\&quot;414\\&quot;:2,\\&quot;415\\&quot;:2,\\&quot;416\\&quot;:2,\\&quot;417\\&quot;:3,\\&quot;418\\&quot;:3,\\&quot;419\\&quot;:3,\\&quot;420\\&quot;:3,\\&quot;421\\&quot;:3,\\&quot;422\\&quot;:3,\\&quot;423\\&quot;:2,\\&quot;424\\&quot;:2,\\&quot;425\\&quot;:2,\\&quot;426\\&quot;:3,\\&quot;427\\&quot;:3,\\&quot;428\\&quot;:3,\\&quot;429\\&quot;:3,\\&quot;430\\&quot;:3,\\&quot;431\\&quot;:3,\\&quot;432\\&quot;:3,\\&quot;433\\&quot;:3,\\&quot;434\\&quot;:3,\\&quot;435\\&quot;:3,\\&quot;436\\&quot;:3,\\&quot;437\\&quot;:3,\\&quot;438\\&quot;:3,\\&quot;439\\&quot;:3,\\&quot;440\\&quot;:3,\\&quot;441\\&quot;:4,\\&quot;442\\&quot;:4,\\&quot;443\\&quot;:4,\\&quot;444\\&quot;:3,\\&quot;445\\&quot;:3,\\&quot;446\\&quot;:3,\\&quot;447\\&quot;:2,\\&quot;448\\&quot;:2,\\&quot;449\\&quot;:2,\\&quot;450\\&quot;:2,\\&quot;451\\&quot;:2,\\&quot;452\\&quot;:2}&quot;\n    }\n  }, \n  &quot;status&quot;: {\n    &quot;code&quot;: 200, \n    &quot;result&quot;: &quot;success&quot;\n  }\n}\n&#x27;
+INFO     status:test_getcolstats.py:86 Asserting status code
+INFO     status:test_getcolstats.py:88 200
+INFO     resbody:test_getcolstats.py:94 Asserting response body
+INFO     resmessage:test_getcolstats.py:101 Asserting message in result
+INFO     resmessage:test_getcolstats.py:105 success
+INFO     colname:test_getcolstats.py:111 Asserting column names in response body<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">stepdefs/test_getcolstats.py::test_verify_get_col_stats_passes_positive_test_cases[get_col_stats_homes.json]</td>
+          <td class="col-duration">7.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -------------------------------Captured log call-------------------------------- <br/>INFO     datasetid:test_getcolstats.py:37 {&#x27;project_id&#x27;: &#x27;Us_census_data&#x27;, &#x27;url_path&#x27;: &#x27;/weav-data/uploaded-raw-files&#x27;, &#x27;artifact_id&#x27;: &#x27;&#x27;, &#x27;dataset_name&#x27;: &#x27;Us_census_data&#x27;, &#x27;destination_path&#x27;: &#x27;raw&#x27;, &#x27;destination&#x27;: &#x27;Custom Destination&#x27;, &#x27;tags&#x27;: [], &#x27;file_type&#x27;: &#x27;csv&#x27;, &#x27;connector_id&#x27;: &#x27;7e96005d-cbd3-4353-aa87-a5d305641ccc&#x27;, &#x27;source_name&#x27;: &#x27;file&#x27;, &#x27;connector_name&#x27;: &#x27;file&#x27;}
+INFO     datasetid:test_getcolstats.py:41 b&#x27;{&quot;data&quot;:{&quot;dataset_id&quot;:&quot;fdf1dc92-5e04-4703-9870-cf95ca4d1562&quot;,&quot;version_id&quot;:&quot;1.0.1654505152&quot;},&quot;status&quot;:{&quot;code&quot;:200,&quot;result&quot;:&quot;success&quot;}}\n&#x27;
+INFO     payload:test_getcolstats.py:72 {&#x27;dataset_id&#x27;: &#x27;fdf1dc92-5e04-4703-9870-cf95ca4d1562&#x27;, &#x27;version_id&#x27;: &#x27;1.0.1654505152&#x27;, &#x27;user_id&#x27;: &#x27;Sheshan01&#x27;, &#x27;session_id&#x27;: &#x27;session007&#x27;, &#x27;file_name&#x27;: &#x27;homes.parquet&#x27;, &#x27;col_names&#x27;: [&#x27;Sell&#x27;, &#x27;Living&#x27;]}
+INFO     payload:test_getcolstats.py:78 b&#x27;{\n  &quot;data&quot;: {\n    &quot;Living&quot;: {\n      &quot;feature_class&quot;: &quot;numeric&quot;, \n      &quot;feature_type&quot;: &quot;integer&quot;, \n      &quot;max&quot;: 64.0, \n      &quot;median&quot;: 20.017, \n      &quot;min&quot;: 10.0, \n      &quot;missing_values&quot;: 6, \n      &quot;quantiles&quot;: {\n        &quot;0&quot;: 16.993, \n        &quot;1&quot;: 20.017, \n        &quot;2&quot;: 24.013\n      }, \n      &quot;standard_deviation&quot;: 8.739, \n      &quot;total_rows&quot;: 51\n    }, \n    &quot;Sell&quot;: {\n      &quot;feature_class&quot;: &quot;numeric&quot;, \n      &quot;feature_type&quot;: &quot;integer&quot;, \n      &quot;max&quot;: 567.0, \n      &quot;median&quot;: 150.6, \n      &quot;min&quot;: 87.0, \n      &quot;missing_values&quot;: 9, \n      &quot;quantiles&quot;: {\n        &quot;0&quot;: 132.84, \n        &quot;1&quot;: 150.6, \n        &quot;2&quot;: 184.2\n      }, \n      &quot;standard_deviation&quot;: 81.3297, \n      &quot;total_rows&quot;: 51\n    }\n  }, \n  &quot;status&quot;: {\n    &quot;code&quot;: 200, \n    &quot;result&quot;: &quot;success&quot;\n  }\n}\n&#x27;
+INFO     status:test_getcolstats.py:86 Asserting status code
+INFO     status:test_getcolstats.py:88 200
+INFO     resbody:test_getcolstats.py:94 Asserting response body
+INFO     resmessage:test_getcolstats.py:101 Asserting message in result
+INFO     resmessage:test_getcolstats.py:105 success
+INFO     colname:test_getcolstats.py:111 Asserting column names in response body<br/></div></td></tr></tbody></table></body></html>

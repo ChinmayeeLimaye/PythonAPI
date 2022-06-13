@@ -1,0 +1,12 @@
+{
+    "dataset_id": "{{dataset_id}}",
+    "version_id": "{{version_id}}",
+    "user_id": "Sheshan01",
+    "session_id": "session007",
+    "file_name": "tinder2.parquet",
+    "col_names": [
+        "Count",
+        "Percentage",
+        "Segment Description"
+    ]
+}
